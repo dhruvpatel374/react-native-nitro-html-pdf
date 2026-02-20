@@ -1,9 +1,11 @@
 import { NitroModules } from 'react-native-nitro-modules';
-import type { NitroHtmlPdf } from './NitroHtmlPdf.nitro';
+import type { NitroHtmlPdf, PdfOptions, PdfResult } from './NitroHtmlPdf.nitro';
 
 const NitroHtmlPdfHybridObject =
   NitroModules.createHybridObject<NitroHtmlPdf>('NitroHtmlPdf');
 
-export function multiply(a: number, b: number): number {
-  return NitroHtmlPdfHybridObject.multiply(a, b);
+export async function generatePdf(options: PdfOptions): Promise<PdfResult> {
+  return await NitroHtmlPdfHybridObject.generatePdf(options);
 }
+
+export type { PdfOptions, PdfResult, PageSize } from './NitroHtmlPdf.nitro';
