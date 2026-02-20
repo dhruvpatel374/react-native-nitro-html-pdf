@@ -1,0 +1,17 @@
+{
+  "cxxNamespace": ["nitrohtmlpdf"],
+  "ios": {
+    "iosModuleName": "NitroHtmlPdf"
+  },
+  "android": {
+    "androidNamespace": ["nitrohtmlpdf"],
+    "androidCxxLibName": "nitrohtmlpdf"
+  },
+  "autolinking": {
+    "NitroHtmlPdf": {
+      "swift": "NitroHtmlPdf",
+      "kotlin": "NitroHtmlPdf"
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}
