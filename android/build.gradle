@@ -116,4 +116,5 @@ dependencies {
   implementation "com.facebook.react:react-android"
   implementation project(":react-native-nitro-modules")
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+  implementation "com.tom-roush:pdfbox-android:2.0.27.0"
 }
