@@ -1,7 +1,7 @@
 {
   "name": "react-native-nitro-html-pdf",
   "version": "0.1.0",
-  "description": "HTML to PDF",
+  "description": "High-quality HTML to PDF conversion for React Native with vector-based header/footer support",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -46,7 +46,15 @@
   "keywords": [
     "react-native",
     "ios",
-    "android"
+    "android",
+    "pdf",
+    "html-to-pdf",
+    "pdf-generation",
+    "nitro-modules",
+    "vector-pdf",
+    "pdf-converter",
+    "html2pdf",
+    "invoice-generator"
   ],
   "repository": {
     "type": "git",
@@ -91,6 +99,9 @@
   "peerDependencies": {
     "react": "*",
     "react-native": "*",
+    "react-native-nitro-modules": "^0.33.9"
+  },
+  "dependencies": {
     "react-native-nitro-modules": "^0.33.9"
   },
   "workspaces": [
