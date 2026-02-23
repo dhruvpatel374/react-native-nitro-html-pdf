@@ -7,10 +7,16 @@ import {
   ScrollView,
   Alert,
   Share,
+  Linking,
+  TouchableOpacity,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { generatePdf } from 'react-native-nitro-html-pdf';
 import type { PdfResult } from 'react-native-nitro-html-pdf';
 import { HEADER_HTML, FOOTER_HTML } from './invoiceTemplate';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -171,7 +177,7 @@ const generateInvoiceHTML = () => {
     .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
     .table-header { color: #276668; }
     .table-header th { padding: 12px 8px; text-align: left; font-weight: bold; }
-    .totals-section { display: flex; justify-content: space-between; }
+    .totals-section { display: flex; justify-content: space-between;page-break-inside: avoid; }
     .totals { width: 45%; text-align: right; }
     .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; }
   </style>
@@ -236,7 +242,7 @@ export default function App() {
   };
 
   const createFiixxoInvoice = async (
-    pageSize: 'A4' | 'A3' | 'A5' | 'LETTER' | 'LEGAL'
+    pageSize: 'A4' | 'A3' | 'A5' | 'Letter' | 'Legal'
   ) => {
     setLoading(true);
     try {
@@ -246,21 +252,25 @@ export default function App() {
         pageSize: pageSize,
         header: HEADER_HTML,
         footer: FOOTER_HTML,
-        headerHeight: 170,
-        footerHeight: 100,
+        headerHeight: 120,
+        footerHeight: 90,
         showPageNumbers: true,
         pageNumberFormat: 'Page {page} of {total}',
         pageNumberFontSize: 14,
       });
       setResult(res);
-      Alert.alert(
-        'Success',
-        `Invoice created (${pageSize})!\n\nPath: ${res.filePath}`,
-        [
-          { text: 'OK' },
-          { text: 'Share', onPress: () => sharePdf(res.filePath) },
-        ]
-      );
+      if (res.success) {
+        Alert.alert(
+          'Success',
+          `Invoice created (${pageSize})!\n\nPath: ${res.filePath}`,
+          [
+            { text: 'OK' },
+            { text: 'Share', onPress: () => sharePdf(res.filePath) },
+          ]
+        );
+      } else {
+        Alert.alert('Error', res.error || 'PDF generation failed');
+      }
     } catch (error) {
       Alert.alert('Error', String(error));
     }
@@ -276,10 +286,14 @@ export default function App() {
         pageSize: 'A4',
       });
       setResult(res);
-      Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
-        { text: 'OK' },
-        { text: 'Share', onPress: () => sharePdf(res.filePath) },
-      ]);
+      if (res.success) {
+        Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
+          { text: 'OK' },
+          { text: 'Share', onPress: () => sharePdf(res.filePath) },
+        ]);
+      } else {
+        Alert.alert('Error', res.error || 'PDF generation failed');
+      }
     } catch (error) {
       Alert.alert('Error', String(error));
     }
@@ -309,10 +323,14 @@ export default function App() {
         marginBottom: 60,
       });
       setResult(res);
-      Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
-        { text: 'OK' },
-        { text: 'Share', onPress: () => sharePdf(res.filePath) },
-      ]);
+      if (res.success) {
+        Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
+          { text: 'OK' },
+          { text: 'Share', onPress: () => sharePdf(res.filePath) },
+        ]);
+      } else {
+        Alert.alert('Error', res.error || 'PDF generation failed');
+      }
     } catch (error) {
       Alert.alert('Error', String(error));
     }
@@ -342,10 +360,14 @@ export default function App() {
         marginRight: 30,
       });
       setResult(res);
-      Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
-        { text: 'OK' },
-        { text: 'Share', onPress: () => sharePdf(res.filePath) },
-      ]);
+      if (res.success) {
+        Alert.alert('Success', `PDF created!\n\nPath: ${res.filePath}`, [
+          { text: 'OK' },
+          { text: 'Share', onPress: () => sharePdf(res.filePath) },
+        ]);
+      } else {
+        Alert.alert('Error', res.error || 'PDF generation failed');
+      }
     } catch (error) {
       Alert.alert('Error', String(error));
     }
@@ -377,13 +399,13 @@ export default function App() {
         <View style={styles.spacer} />
         <Button
           title="Fiixxo Invoice - Letter"
-          onPress={() => createFiixxoInvoice('LETTER')}
+          onPress={() => createFiixxoInvoice('Letter')}
           disabled={loading}
         />
         <View style={styles.spacer} />
         <Button
           title="Fiixxo Invoice - Legal"
-          onPress={() => createFiixxoInvoice('LEGAL')}
+          onPress={() => createFiixxoInvoice('Legal')}
           disabled={loading}
         />
 
@@ -429,6 +451,25 @@ export default function App() {
             )}
           </View>
         )}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerBy}>By</Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://github.com/dhruvpatel374')}
+          >
+            <Text style={styles.footerText}>Dhruv Patel</Text>
+          </TouchableOpacity>
+          <Text style={styles.footerAt}>at</Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://flitzinteractive.com')}
+          >
+            <Image
+              source={require('./images/Flitz_Interactive.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -446,11 +487,58 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 10,
     textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#007AFF',
+    textAlign: 'center',
+    marginBottom: 5,
+    textDecorationLine: 'underline',
+  },
+  company: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#276668',
+    textAlign: 'center',
+    marginBottom: 30,
+    textDecorationLine: 'underline',
   },
   spacer: {
     height: 15,
+  },
+  footer: {
+    marginTop: 40,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    alignItems: 'center',
+  },
+  footerBy: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 5,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  footerAt: {
+    fontSize: 12,
+    color: '#999',
+    marginVertical: 5,
+  },
+  logo: {
+    width: screenWidth * 0.5,
+    height: 80,
+  },
+  footerCompany: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#276668',
+    textDecorationLine: 'underline',
   },
   loading: {
     marginTop: 20,
