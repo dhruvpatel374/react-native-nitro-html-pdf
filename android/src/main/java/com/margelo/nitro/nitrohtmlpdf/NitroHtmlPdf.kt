@@ -20,6 +20,7 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
         @JvmStatic
         var appContext: Context? = null
         private const val TAG = "NitroHtmlPdf"
+        private const val TIMEOUT_SECONDS = 60L
     }
     
     private val context: Context
@@ -32,15 +33,26 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
     }
 
     private fun createPdf(options: PdfOptions): PdfResult {
-        Log.d(TAG, "createPdf called")
+        // Validate inputs
+        val validationError = validateOptions(options)
+        if (validationError != null) {
+            return PdfResult("", false, null, validationError)
+        }
+        
         val latch = CountDownLatch(1)
         var result: PdfResult? = null
 
         Handler(Looper.getMainLooper()).post {
             try {
                 val directory = options.directory ?: context.cacheDir?.absolutePath ?: "/data/local/tmp"
-                val finalFile = File(directory, options.fileName)
+                val dirFile = File(directory)
+                if (!dirFile.exists() && !dirFile.mkdirs()) {
+                    result = PdfResult("", false, null, "Failed to create directory: $directory")
+                    latch.countDown()
+                    return@post
+                }
                 
+                val finalFile = File(directory, options.fileName)
                 val hasHeader = !options.header.isNullOrEmpty()
                 val hasFooter = !options.footer.isNullOrEmpty()
                 
@@ -53,35 +65,76 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
                     converter.convert(context, fullHtml, finalFile, false,
                         object : android.print.PdfConverter.ConversionCallback {
                             override fun onSuccess(filePath: String) {
-                                result = PdfResult(filePath, true, null)
+                                val pageCount = try { PDDocument.load(finalFile).use { it.numberOfPages } } catch (e: Exception) { null }
+                                result = PdfResult(filePath, true, pageCount?.toDouble(), null)
                                 latch.countDown()
                             }
                             override fun onFailure(error: String) {
-                                result = PdfResult("", false, error)
+                                result = PdfResult("", false, null, error)
                                 latch.countDown()
                             }
                         }, null)
                 } else {
                     // Generate with vector header/footer
                     generatePdfWithVectorHeaderFooter(options, finalFile) { success, error ->
-                        result = if (success) PdfResult(finalFile.absolutePath, true, null)
-                                 else PdfResult("", false, error)
+                        val pageCount = if (success) try { PDDocument.load(finalFile).use { it.numberOfPages } } catch (e: Exception) { null } else null
+                        result = if (success) PdfResult(finalFile.absolutePath, true, pageCount?.toDouble(), null)
+                                 else PdfResult("", false, null, error)
                         latch.countDown()
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error in createPdf", e)
-                result = PdfResult("", false, e.message)
+                result = PdfResult("", false, null, "PDF creation failed: ${e.message}")
                 latch.countDown()
             }
         }
 
-        latch.await(60, TimeUnit.SECONDS)
-        return result ?: PdfResult("", false, "PDF creation timed out")
+        latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        return result ?: PdfResult("", false, null, "PDF generation timeout after $TIMEOUT_SECONDS seconds")
+    }
+    
+    private fun validateOptions(options: PdfOptions): String? {
+        if (options.html.isBlank()) {
+            return "HTML content cannot be empty"
+        }
+        
+        if (options.fileName.isBlank()) {
+            return "File name cannot be empty"
+        }
+        
+        if (!options.fileName.endsWith(".pdf", ignoreCase = true)) {
+            return "File name must end with .pdf"
+        }
+        
+        val hasHeader = !options.header.isNullOrEmpty()
+        val hasFooter = !options.footer.isNullOrEmpty()
+        
+        if (hasHeader && (options.headerHeight == null || options.headerHeight!! <= 0)) {
+            return "headerHeight must be provided and greater than 0 when using header"
+        }
+        
+        if (hasFooter && (options.footerHeight == null || options.footerHeight!! <= 0)) {
+            return "footerHeight must be provided and greater than 0 when using footer"
+        }
+        
+        val pageSize = getPageSize(options.pageSize?.name ?: "A4")
+        val headerHeight = options.headerHeight?.toFloat() ?: 0f
+        val footerHeight = options.footerHeight?.toFloat() ?: 0f
+        val marginTop = options.marginTop?.toFloat() ?: 0f
+        val marginBottom = options.marginBottom?.toFloat() ?: 0f
+        
+        if (headerHeight + footerHeight + marginTop + marginBottom >= pageSize.height) {
+            return "Combined header, footer, and margins exceed page height"
+        }
+        
+        if (options.pageNumberFontSize != null && options.pageNumberFontSize!! <= 0) {
+            return "pageNumberFontSize must be greater than 0"
+        }
+        
+        return null
     }
 
     private fun generatePdfWithVectorHeaderFooter(options: PdfOptions, outputFile: File, callback: (Boolean, String?) -> Unit) {
-        val directory = options.directory ?: context.cacheDir?.absolutePath ?: "/data/local/tmp"
         val tempFiles = mutableListOf<File>()
         
         try {
@@ -110,7 +163,7 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
                         completionLatch.countDown()
                     }
                     override fun onFailure(error: String) {
-                        errors.add("Content: $error")
+                        errors.add("Content generation failed: $error")
                         completionLatch.countDown()
                     }
                 }, null)
@@ -125,7 +178,7 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
                             completionLatch.countDown()
                         }
                         override fun onFailure(error: String) {
-                            errors.add("Header: $error")
+                            errors.add("Header generation failed: $error")
                             completionLatch.countDown()
                         }
                     }, null)
@@ -141,7 +194,7 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
                             completionLatch.countDown()
                         }
                         override fun onFailure(error: String) {
-                            errors.add("Footer: $error")
+                            errors.add("Footer generation failed: $error")
                             completionLatch.countDown()
                         }
                     }, null)
@@ -149,33 +202,45 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
             
             // Wait and merge
             Thread {
-                val completed = completionLatch.await(45, TimeUnit.SECONDS)
-                
-                if (!completed) {
-                    callback(false, "PDF generation timed out")
-                    tempFiles.forEach { it.delete() }
-                    return@Thread
-                }
-                
-                if (errors.isNotEmpty()) {
-                    callback(false, errors.joinToString(", "))
-                    tempFiles.forEach { it.delete() }
-                    return@Thread
-                }
-                
                 try {
+                    val completed = completionLatch.await(45, TimeUnit.SECONDS)
+                    
+                    if (!completed) {
+                        callback(false, "PDF generation timed out")
+                        cleanupTempFiles(tempFiles)
+                        return@Thread
+                    }
+                    
+                    if (errors.isNotEmpty()) {
+                        callback(false, errors.joinToString("; "))
+                        cleanupTempFiles(tempFiles)
+                        return@Thread
+                    }
+                    
                     mergePdfs(contentFile, headerFile, footerFile, outputFile, options)
                     callback(true, null)
                 } catch (e: Exception) {
-                    callback(false, e.message)
+                    callback(false, "PDF merge failed: ${e.message}")
                 } finally {
-                    tempFiles.forEach { it.delete() }
+                    cleanupTempFiles(tempFiles)
                 }
             }.start()
             
         } catch (e: Exception) {
-            tempFiles.forEach { it.delete() }
-            callback(false, e.message)
+            cleanupTempFiles(tempFiles)
+            callback(false, "PDF generation setup failed: ${e.message}")
+        }
+    }
+    
+    private fun cleanupTempFiles(files: List<File>) {
+        files.forEach { file ->
+            try {
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                // Silently ignore cleanup errors
+            }
         }
     }
     
@@ -195,97 +260,106 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
     
     private fun mergePdfs(contentFile: File, headerFile: File?, footerFile: File?, outputFile: File, options: PdfOptions) {
         com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
-        val contentDoc = PDDocument.load(contentFile)
-        val headerDoc = headerFile?.let { PDDocument.load(it) }
-        val footerDoc = footerFile?.let { PDDocument.load(it) }
         
-        val layerUtility = LayerUtility(contentDoc)
-        val marginLeft = options.marginLeft?.toFloat() ?: 0f
-        val marginRight = options.marginRight?.toFloat() ?: 0f
-        val headerHeight = options.headerHeight?.toFloat() ?: 0f
-        val footerHeight = options.footerHeight?.toFloat() ?: 0f
-        val showPageNumbers = options.showPageNumbers ?: false
-        val pageNumberFontSize = options.pageNumberFontSize?.toFloat() ?: 12f
-        val pageNumberFormat = options.pageNumberFormat ?: "Page {page} of {total}"
+        var contentDoc: PDDocument? = null
+        var headerDoc: PDDocument? = null
+        var footerDoc: PDDocument? = null
         
-        val totalPages = contentDoc.numberOfPages
-        
-        for ((pageIndex, contentPage) in contentDoc.pages.withIndex()) {
-            val pageHeight = contentPage.mediaBox.height
-            val pageWidth = contentPage.mediaBox.width
-            val availableWidth = pageWidth - marginLeft - marginRight
+        try {
+            contentDoc = PDDocument.load(contentFile)
+            headerDoc = headerFile?.let { PDDocument.load(it) }
+            footerDoc = footerFile?.let { PDDocument.load(it) }
             
-            // Prepend header - clip top portion of header PDF
-            if (headerDoc != null) {
-                val headerPage = headerDoc.getPage(0)
-                val headerForm = layerUtility.importPageAsForm(headerDoc, 0)
-                val headerPageHeight = headerPage.mediaBox.height
-                
-                val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.PREPEND, true, true)
-                stream.saveGraphicsState()
-                
-                // Clip to header height area
-                stream.addRect(marginLeft, pageHeight - headerHeight, availableWidth, headerHeight)
-                stream.clip()
-                
-                // Position header form at top, it will be clipped to headerHeight
-                val matrix = com.tom_roush.pdfbox.util.Matrix()
-                matrix.translate(marginLeft, pageHeight - headerPageHeight)
-                stream.transform(matrix)
-                stream.drawForm(headerForm)
-                
-                stream.restoreGraphicsState()
-                stream.close()
+            if (contentDoc.numberOfPages == 0) {
+                throw IllegalStateException("Content PDF has no pages")
             }
             
-            // Prepend footer - clip bottom portion of footer PDF
-            if (footerDoc != null) {
-                val footerPage = footerDoc.getPage(0)
-                val footerForm = layerUtility.importPageAsForm(footerDoc, 0)
+            val layerUtility = LayerUtility(contentDoc)
+            val marginLeft = options.marginLeft?.toFloat() ?: 0f
+            val marginRight = options.marginRight?.toFloat() ?: 0f
+            val marginTop = options.marginTop?.toFloat() ?: 0f
+            val marginBottom = options.marginBottom?.toFloat() ?: 0f
+            val headerHeight = options.headerHeight?.toFloat() ?: 0f
+            val footerHeight = options.footerHeight?.toFloat() ?: 0f
+            val showPageNumbers = options.showPageNumbers ?: false
+            val pageNumberFontSize = options.pageNumberFontSize?.toFloat() ?: 12f
+            val pageNumberFormat = options.pageNumberFormat ?: "Page {page} of {total}"
+            
+            val totalPages = contentDoc.numberOfPages
+            
+            for ((pageIndex, contentPage) in contentDoc.pages.withIndex()) {
+                val pageHeight = contentPage.mediaBox.height
+                val pageWidth = contentPage.mediaBox.width
+                val availableWidth = pageWidth - marginLeft - marginRight
                 
-                val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.PREPEND, true, true)
-                stream.saveGraphicsState()
+                // Prepend header
+                if (headerDoc != null) {
+                    val headerPage = headerDoc.getPage(0)
+                    val headerForm = layerUtility.importPageAsForm(headerDoc, 0)
+                    val headerPageHeight = headerPage.mediaBox.height
+                    
+                    val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.PREPEND, true, true)
+                    stream.saveGraphicsState()
+                    
+                    stream.addRect(marginLeft, pageHeight - marginTop - headerHeight, availableWidth, headerHeight)
+                    stream.clip()
+                    
+                    val matrix = com.tom_roush.pdfbox.util.Matrix()
+                    matrix.translate(marginLeft, pageHeight - marginTop - headerPageHeight)
+                    stream.transform(matrix)
+                    stream.drawForm(headerForm)
+                    
+                    stream.restoreGraphicsState()
+                    stream.close()
+                }
                 
-                // Clip to footer height area at bottom
-                stream.addRect(marginLeft, 0f, availableWidth, footerHeight)
-                stream.clip()
+                // Prepend footer
+                if (footerDoc != null) {
+                    val footerPage = footerDoc.getPage(0)
+                    val footerForm = layerUtility.importPageAsForm(footerDoc, 0)
+                    
+                    val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.PREPEND, true, true)
+                    stream.saveGraphicsState()
+                    
+                    stream.addRect(marginLeft, marginBottom, availableWidth, footerHeight)
+                    stream.clip()
+                    
+                    val matrix = com.tom_roush.pdfbox.util.Matrix()
+                    matrix.translate(marginLeft, marginBottom)
+                    stream.transform(matrix)
+                    stream.drawForm(footerForm)
+                    
+                    stream.restoreGraphicsState()
+                    stream.close()
+                }
                 
-                // Position footer form at bottom
-                val matrix = com.tom_roush.pdfbox.util.Matrix()
-                matrix.translate(marginLeft, 0f)
-                stream.transform(matrix)
-                stream.drawForm(footerForm)
-                
-                stream.restoreGraphicsState()
-                stream.close()
+                // Append page numbers
+                if (showPageNumbers) {
+                    val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.APPEND, true, true)
+                    val currentPage = pageIndex + 1
+                    var pageText = pageNumberFormat
+                    pageText = pageText.replace("{page}", currentPage.toString())
+                    pageText = pageText.replace("{total}", totalPages.toString())
+                    stream.beginText()
+                    stream.setFont(com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA, pageNumberFontSize)
+                    val textWidth = com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA.getStringWidth(pageText) / 1000 * pageNumberFontSize
+                    
+                    val xPos = (pageWidth - textWidth) / 2
+                    val yPos = footerHeight
+                    
+                    stream.newLineAtOffset(xPos, yPos)
+                    stream.showText(pageText)
+                    stream.endText()
+                    stream.close()
+                }
             }
             
-            // Append page numbers
-            if (showPageNumbers) {
-                val stream = PDPageContentStream(contentDoc, contentPage, PDPageContentStream.AppendMode.APPEND, true, true)
-                val currentPage = pageIndex + 1
-                var pageText = pageNumberFormat
-                pageText = pageText.replace("{page}", currentPage.toString())
-                pageText = pageText.replace("{total}", totalPages.toString())
-                stream.beginText()
-                stream.setFont(com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA, pageNumberFontSize)
-                val textWidth = com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA.getStringWidth(pageText) / 1000 * pageNumberFontSize
-                
-                // Auto-adjust position: center horizontally, position just above footer
-                val xPos = (pageWidth - textWidth) / 2
-                val yPos = footerHeight - pageNumberFontSize - 2f
-                
-                stream.newLineAtOffset(xPos, yPos)
-                stream.showText(pageText)
-                stream.endText()
-                stream.close()
-            }
+            contentDoc.save(outputFile)
+        } finally {
+            contentDoc?.close()
+            headerDoc?.close()
+            footerDoc?.close()
         }
-        
-        contentDoc.save(outputFile)
-        contentDoc.close()
-        headerDoc?.close()
-        footerDoc?.close()
     }
     
     private fun wrapHtml(html: String): String {
@@ -359,11 +433,14 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
                 <meta charset="UTF-8">
                 <style>
                     @page {
-                        margin: ${totalMarginTop}px ${marginRight}px ${totalMarginBottom}px ${marginLeft}px;
+                        margin: ${totalMarginTop}pt ${marginRight}pt ${totalMarginBottom}pt ${marginLeft}pt;
+                        size: auto;
                     }
-                    body { 
+                    html, body { 
                         margin: 0;
                         padding: 0;
+                        width: 100%;
+                        height: auto;
                     }
                 </style>
             </head>

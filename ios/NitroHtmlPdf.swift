@@ -4,11 +4,73 @@ import WebKit
 import NitroModules
 
 class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
+    private let timeout: TimeInterval = 60
+    private var activeDelegates: [WebViewDelegate] = []
     
     public func generatePdf(options: PdfOptions) throws -> Promise<PdfResult> {
         return Promise.async { [weak self] in
-            return try await self?.createPdf(options: options) ?? PdfResult(filePath: "", success: false, error: "Failed to create PDF")
+            guard let self = self else {
+                return PdfResult(filePath: "", success: false, numberOfPages: nil, error: "Failed to create PDF")
+            }
+            
+            if let error = self.validateOptions(options) {
+                return PdfResult(filePath: "", success: false, numberOfPages: nil, error: error)
+            }
+            
+            return try await withTimeout(seconds: self.timeout) {
+                try await self.createPdf(options: options)
+            }
         }
+    }
+    
+    private func validateOptions(_ options: PdfOptions) -> String? {
+        if options.html.isEmpty {
+            return "HTML content cannot be empty"
+        }
+        
+        if options.fileName.isEmpty {
+            return "File name cannot be empty"
+        }
+        
+        if !options.fileName.lowercased().hasSuffix(".pdf") {
+            return "File name must end with .pdf"
+        }
+        
+        let hasHeader = options.header != nil && !options.header!.isEmpty
+        let hasFooter = options.footer != nil && !options.footer!.isEmpty
+        
+        if hasHeader && (options.headerHeight == nil || options.headerHeight! <= 0) {
+            return "headerHeight must be provided and greater than 0 when using header"
+        }
+        
+        if hasFooter && (options.footerHeight == nil || options.footerHeight! <= 0) {
+            return "footerHeight must be provided and greater than 0 when using footer"
+        }
+        
+        if let fontSize = options.pageNumberFontSize, fontSize <= 0 {
+            return "pageNumberFontSize must be greater than 0"
+        }
+        
+        return nil
+    }
+    
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+    
+    private struct TimeoutError: Error {
+        var localizedDescription: String { "PDF generation timeout after 60 seconds" }
     }
     
     private func createPdf(options: PdfOptions) async throws -> PdfResult {
@@ -19,19 +81,15 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
                 let headerHeight = CGFloat(options.headerHeight ?? 0)
                 let footerHeight = CGFloat(options.footerHeight ?? 0)
                 
-                // Create offscreen container view
                 let containerView = UIView(frame: CGRect(x: -10000, y: -10000, width: pageSize.width, height: 10000))
                 containerView.alpha = 0
                 UIApplication.shared.windows.first?.addSubview(containerView)
                 
-                // Create header/footer webviews
                 var headerWebView: WKWebView?
                 var footerWebView: WKWebView?
                 
                 if let header = options.header, headerHeight > 0 {
-                    let config = WKWebViewConfiguration()
-                    config.preferences.javaScriptEnabled = false
-                    let hwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: headerHeight), configuration: config)
+                    let hwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: headerHeight))
                     hwv.scrollView.contentInset = .zero
                     hwv.scrollView.contentInsetAdjustmentBehavior = .never
                     let wrappedHeader = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}</style></head><body>\(header)</body></html>"
@@ -41,9 +99,7 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
                 }
                 
                 if let footer = options.footer, footerHeight > 0 {
-                    let config = WKWebViewConfiguration()
-                    config.preferences.javaScriptEnabled = false
-                    let fwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: footerHeight), configuration: config)
+                    let fwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: footerHeight))
                     fwv.scrollView.contentInset = .zero
                     fwv.scrollView.contentInsetAdjustmentBehavior = .never
                     let wrappedFooter = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}</style></head><body>\(footer)</body></html>"
@@ -52,12 +108,10 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
                     footerWebView = fwv
                 }
                 
-                // Create main content webview
                 let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: 842))
                 webView.loadHTMLString(options.html, baseURL: nil)
                 containerView.addSubview(webView)
                 
-                // Wait for all to load
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                     self.renderPdf(webView: webView, headerWebView: headerWebView, footerWebView: footerWebView, options: options, continuation: continuation)
                     containerView.removeFromSuperview()
@@ -72,10 +126,12 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
         
         let headerHeight = CGFloat(options.headerHeight ?? 0)
         let footerHeight = CGFloat(options.footerHeight ?? 0)
+        let marginTop = CGFloat(options.marginTop ?? 0)
+        let marginBottom = CGFloat(options.marginBottom ?? 0)
         let margins = UIEdgeInsets(
-            top: CGFloat(options.marginTop ?? 0) + headerHeight,
+            top: marginTop + headerHeight,
             left: CGFloat(options.marginLeft ?? 0),
-            bottom: CGFloat(options.marginBottom ?? 0) + footerHeight + (options.showPageNumbers ?? false ? 20 : 0),
+            bottom: marginBottom + footerHeight + (options.showPageNumbers ?? false ? 20 : 0),
             right: CGFloat(options.marginRight ?? 0)
         )
         
@@ -113,14 +169,15 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
         
         UIGraphicsEndPDFContext()
         
+        let numberOfPages = renderer.numberOfPages
         let directory = options.directory ?? NSTemporaryDirectory()
         let filePath = (directory as NSString).appendingPathComponent(options.fileName)
         
         do {
             try pdfData.write(toFile: filePath, options: .atomic)
-            continuation.resume(returning: PdfResult(filePath: filePath, success: true, error: nil))
+            continuation.resume(returning: PdfResult(filePath: filePath, success: true, numberOfPages: Double(numberOfPages), error: nil))
         } catch {
-            continuation.resume(returning: PdfResult(filePath: "", success: false, error: error.localizedDescription))
+            continuation.resume(returning: PdfResult(filePath: "", success: false, numberOfPages: nil, error: error.localizedDescription))
         }
     }
     
@@ -175,13 +232,14 @@ class CustomPrintPageRenderer: UIPrintPageRenderer {
     override func drawPage(at pageIndex: Int, in printableRect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
         
-        super.drawPage(at: pageIndex, in: printableRect)
-        
         if let headerWebView = headerWebView, customHeaderHeight > 0 {
             context.saveGState()
+            context.translateBy(x: 0, y: 0)
             headerWebView.layer.render(in: context)
             context.restoreGState()
         }
+        
+        super.drawPage(at: pageIndex, in: printableRect)
         
         if showPageNumbers {
             let currentPage = pageIndex + 1
@@ -207,5 +265,26 @@ class CustomPrintPageRenderer: UIPrintPageRenderer {
             footerWebView.layer.render(in: context)
             context.restoreGState()
         }
+    }
+}
+
+class WebViewDelegate: NSObject, WKNavigationDelegate {
+    private let onFinish: () -> Void
+    private var hasFinished = false
+    
+    init(onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+    }
+    
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard !hasFinished else { return }
+        hasFinished = true
+        onFinish()
+    }
+    
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard !hasFinished else { return }
+        hasFinished = true
+        onFinish()
     }
 }
