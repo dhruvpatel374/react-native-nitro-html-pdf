@@ -235,26 +235,32 @@ export default function App() {
     }
   };
 
-  const createFiixxoInvoice = async () => {
+  const createFiixxoInvoice = async (
+    pageSize: 'A4' | 'A3' | 'A5' | 'LETTER' | 'LEGAL'
+  ) => {
     setLoading(true);
     try {
       const res = await generatePdf({
         html: generateInvoiceHTML(),
-        fileName: 'fiixxo_invoice.pdf',
-        pageSize: 'A4',
+        fileName: `fiixxo_invoice_${pageSize}.pdf`,
+        pageSize: pageSize,
         header: HEADER_HTML,
         footer: FOOTER_HTML,
-        headerHeight: 120,
+        headerHeight: 170,
         footerHeight: 100,
         showPageNumbers: true,
         pageNumberFormat: 'Page {page} of {total}',
         pageNumberFontSize: 14,
       });
       setResult(res);
-      Alert.alert('Success', `Invoice created!\n\nPath: ${res.filePath}`, [
-        { text: 'OK' },
-        { text: 'Share', onPress: () => sharePdf(res.filePath) },
-      ]);
+      Alert.alert(
+        'Success',
+        `Invoice created (${pageSize})!\n\nPath: ${res.filePath}`,
+        [
+          { text: 'OK' },
+          { text: 'Share', onPress: () => sharePdf(res.filePath) },
+        ]
+      );
     } catch (error) {
       Alert.alert('Error', String(error));
     }
@@ -352,8 +358,32 @@ export default function App() {
         <Text style={styles.title}>React Native Nitro HTML to PDF</Text>
 
         <Button
-          title="Create Fiixxo Invoice"
-          onPress={createFiixxoInvoice}
+          title="Fiixxo Invoice - A4"
+          onPress={() => createFiixxoInvoice('A4')}
+          disabled={loading}
+        />
+        <View style={styles.spacer} />
+        <Button
+          title="Fiixxo Invoice - A3"
+          onPress={() => createFiixxoInvoice('A3')}
+          disabled={loading}
+        />
+        <View style={styles.spacer} />
+        <Button
+          title="Fiixxo Invoice - A5"
+          onPress={() => createFiixxoInvoice('A5')}
+          disabled={loading}
+        />
+        <View style={styles.spacer} />
+        <Button
+          title="Fiixxo Invoice - Letter"
+          onPress={() => createFiixxoInvoice('LETTER')}
+          disabled={loading}
+        />
+        <View style={styles.spacer} />
+        <Button
+          title="Fiixxo Invoice - Legal"
+          onPress={() => createFiixxoInvoice('LEGAL')}
           disabled={loading}
         />
 

@@ -178,29 +178,42 @@ class PdfConverter private constructor() : Runnable {
         if (htmlString == null) throw Exception("htmlString can't be null")
         if (file == null) throw Exception("file can't be null")
 
-        if (mIsCurrentlyConverting) {
-            Log.w(TAG, "PDF conversion already in progress, ignoring new request")
-            callback?.onFailure("Another PDF conversion is currently in progress")
-            return
-        }
+        synchronized(this) {
+            if (mIsCurrentlyConverting) {
+                Log.w(TAG, "PDF conversion already in progress, waiting...")
+                Thread {
+                    var waited = 0
+                    while (mIsCurrentlyConverting && waited < 30000) {
+                        Thread.sleep(100)
+                        waited += 100
+                    }
+                    if (mIsCurrentlyConverting) {
+                        callback?.onFailure("Previous conversion did not complete")
+                        return@Thread
+                    }
+                    convert(context, htmlString, file, shouldEncode, callback, baseURL)
+                }.start()
+                return
+            }
 
-        Log.d(TAG, "Starting PDF conversion for file: ${file.absolutePath}")
+            Log.d(TAG, "Starting PDF conversion for file: ${file.absolutePath}")
 
-        try {
-            mContext = context
-            mHtmlString = htmlString
-            mPdfFile = file
-            mIsCurrentlyConverting = true
-            mCallback = callback
-            mBaseURL = baseURL
-            
-            setupTimeout()
-            runOnUiThread(this)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting up PDF conversion", e)
-            mIsCurrentlyConverting = false
-            cancelTimeout()
-            callback?.onFailure("Failed to setup PDF conversion: ${e.message}")
+            try {
+                mContext = context
+                mHtmlString = htmlString
+                mPdfFile = file
+                mIsCurrentlyConverting = true
+                mCallback = callback
+                mBaseURL = baseURL
+                
+                setupTimeout()
+                runOnUiThread(this)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting up PDF conversion", e)
+                mIsCurrentlyConverting = false
+                cancelTimeout()
+                callback?.onFailure("Failed to setup PDF conversion: ${e.message}")
+            }
         }
     }
 
