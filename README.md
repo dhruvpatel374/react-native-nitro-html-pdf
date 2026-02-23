@@ -183,4 +183,13 @@ MIT
 
 ---
 
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
+<div align="center">
+  <a href="https://flitzinteractive.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://flitzinteractive.com/logo-light.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://flitzinteractive.com/images/flitz_interactive.svg">
+      <img src="https://flitzinteractive.com/images/flitz_interactive.svg" alt="Flitz Interactive" width="300"/>
+    </picture>
+  </a>
+  <p><em>Developed at Flitz Interactive</em></p>
+</div>
