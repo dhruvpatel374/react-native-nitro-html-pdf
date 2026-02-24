@@ -11,6 +11,22 @@ High-quality HTML to PDF conversion for React Native with vector-based header/fo
 - ✅ Custom margins
 - ✅ iOS and Android support
 - ✅ Built with [Nitro Modules](https://nitro.margelo.com/) for optimal performance
+- ✅ No Backend Required - Works offline
+- ✅ Privacy-First - No data sent to servers
+- ✅ Zero Cloud Costs - Local PDF generation
+
+## Use Cases
+
+This library is perfect for:
+
+- **📄 Invoices and Receipts** - Professional documents with company headers and page numbers
+- **📊 Reports** - Multi-page reports with consistent branding
+- **📋 Contracts** - Legal documents with headers, footers, and pagination
+- **🎓 Certificates** - Custom-designed certificates with vector quality
+- **💳 Statements** - Bank statements, account summaries, etc.
+- **🎫 Tickets and Passes** - Event tickets, boarding passes, etc.
+- **📑 Documentation** - Technical manuals, user guides
+- **💼 Business Documents** - Proposals, quotes, presentations
 
 ## Installation
 
@@ -18,7 +34,26 @@ High-quality HTML to PDF conversion for React Native with vector-based header/fo
 npm install react-native-nitro-html-pdf react-native-nitro-modules
 ```
 
+Or with yarn:
+
+```sh
+yarn add react-native-nitro-html-pdf react-native-nitro-modules
+```
+
 > `react-native-nitro-modules` is required as this library relies on [Nitro Modules](https://nitro.margelo.com/).
+
+### Android Setup
+
+Add to your `MainActivity.kt`:
+
+```kotlin
+import com.margelo.nitro.nitrohtmlpdf.NitroHtmlPdf
+
+override fun onCreate(savedInstanceState: android.os.Bundle?) {
+    super.onCreate(savedInstanceState)
+    NitroHtmlPdf.appContext = applicationContext
+}
+```
 
 ## Usage
 
