@@ -1,6 +1,10 @@
 <div align="center">
-  <a href="https://flitzinteractive.com">
-    <img src="https://flitzinteractive.com/images/flitz_interactive.svg" alt="Flitz Interactive" width="300"/>
+  <a href="https://flitzinteractive.com" rel="dofollow">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://flitzinteractive.com/logo-light.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://flitzinteractive.com/images/flitz_interactive.svg">
+      <img src="https://flitzinteractive.com/images/flitz_interactive.svg" alt="Flitz Interactive" width="300"/>
+    </picture>
   </a>
   
   <h1>@flitzinteractive/react-native-nitro-html-pdf</h1>
@@ -226,4 +230,4 @@ MIT
 
 ---
 
-**Crafted with vision by [Flitz Interactive](https://flitzinteractive.com)**
+**Crafted with vision by <a href="https://flitzinteractive.com" rel="dofollow">Flitz Interactive</a>**
