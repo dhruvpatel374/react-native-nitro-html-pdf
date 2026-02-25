@@ -1,6 +1,14 @@
-# react-native-nitro-html-pdf
+<div align="center">
+  <a href="https://flitzinteractive.com">
+    <img src="https://flitzinteractive.com/images/flitz_interactive.svg" alt="Flitz Interactive" width="300"/>
+  </a>
+  
+  <h1>@flitzinteractive/react-native-nitro-html-pdf</h1>
+  
+  <p><strong>Generate professional PDF documents directly on device from HTML - perfect for invoices, receipts, reports, and contracts with custom headers, footers, and page numbers. No backend required, works offline, zero cloud costs.</strong></p>
+</div>
 
-High-quality HTML to PDF conversion for React Native with vector-based header/footer support.
+---
 
 ## Features
 
@@ -31,13 +39,13 @@ This library is perfect for:
 ## Installation
 
 ```sh
-npm install react-native-nitro-html-pdf react-native-nitro-modules
+npm install @flitzinteractive/react-native-nitro-html-pdf react-native-nitro-modules
 ```
 
 Or with yarn:
 
 ```sh
-yarn add react-native-nitro-html-pdf react-native-nitro-modules
+yarn add @flitzinteractive/react-native-nitro-html-pdf react-native-nitro-modules
 ```
 
 > `react-native-nitro-modules` is required as this library relies on [Nitro Modules](https://nitro.margelo.com/).
@@ -60,7 +68,7 @@ override fun onCreate(savedInstanceState: android.os.Bundle?) {
 ### Basic Example
 
 ```typescript
-import { generatePdf } from 'react-native-nitro-html-pdf';
+import { generatePdf } from '@flitzinteractive/react-native-nitro-html-pdf';
 
 const result = await generatePdf({
   html: '<h1>Hello World</h1><p>This is a PDF document.</p>',
@@ -218,13 +226,4 @@ MIT
 
 ---
 
-<div align="center">
-  <a href="https://flitzinteractive.com">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://flitzinteractive.com/logo-light.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://flitzinteractive.com/images/flitz_interactive.svg">
-      <img src="https://flitzinteractive.com/images/flitz_interactive.svg" alt="Flitz Interactive" width="300"/>
-    </picture>
-  </a>
-  <p><em>Developed at Flitz Interactive</em></p>
-</div>
+**Crafted with vision by [Flitz Interactive](https://flitzinteractive.com)**

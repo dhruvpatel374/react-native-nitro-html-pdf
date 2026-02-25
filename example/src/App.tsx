@@ -12,8 +12,8 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { generatePdf } from 'react-native-nitro-html-pdf';
-import type { PdfResult } from 'react-native-nitro-html-pdf';
+import { generatePdf } from '@flitzinteractive/react-native-nitro-html-pdf';
+import type { PdfResult } from '@flitzinteractive/react-native-nitro-html-pdf';
 import { HEADER_HTML, FOOTER_HTML } from './invoiceTemplate';
 
 const { width: screenWidth } = Dimensions.get('window');

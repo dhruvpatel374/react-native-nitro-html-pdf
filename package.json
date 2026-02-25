@@ -1,5 +1,5 @@
 {
-  "name": "react-native-nitro-html-pdf",
+  "name": "@flitzinteractive/react-native-nitro-html-pdf",
   "version": "0.1.1",
   "description": "High-quality HTML to PDF conversion for React Native with vector-based header/footer support",
   "main": "./lib/module/index.js",
