@@ -84,3 +84,6 @@ android/generated
 
 # React Native Nitro Modules
 nitrogen/
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat
