@@ -244,20 +244,6 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
         }
     }
     
-    private fun printWebViewToPdf(webView: WebView, outputFile: File, printAttrs: android.print.PrintAttributes, callback: (Boolean, String?) -> Unit) {
-        Handler(Looper.getMainLooper()).post {
-            android.print.PdfPrintHelper.printWebViewToPdf(webView, outputFile, printAttrs,
-                object : android.print.PdfPrintHelper.PrintCallback {
-                    override fun onSuccess() {
-                        callback(true, null)
-                    }
-                    override fun onFailure(error: String?) {
-                        callback(false, error)
-                    }
-                })
-        }
-    }
-    
     private fun mergePdfs(contentFile: File, headerFile: File?, footerFile: File?, outputFile: File, options: PdfOptions) {
         com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
         
@@ -383,18 +369,6 @@ class NitroHtmlPdf : HybridNitroHtmlPdfSpec() {
 </head>
 <body>$html</body>
 </html>"""
-    }
-
-    private fun createWebView(width: Int, height: Int): WebView {
-        return WebView(context).apply {
-            settings.javaScriptEnabled = false
-            settings.domStorageEnabled = true
-            measure(
-                android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
-                android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY)
-            )
-            layout(0, 0, width, height)
-        }
     }
     
 
