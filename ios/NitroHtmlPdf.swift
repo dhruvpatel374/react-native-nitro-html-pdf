@@ -87,40 +87,81 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
                 
                 var headerWebView: WKWebView?
                 var footerWebView: WKWebView?
+                var contentWebView: WKWebView?
+                var loadedCount = 0
+                var totalToLoad = 1
                 
                 if let header = options.header, headerHeight > 0 {
+                    totalToLoad += 1
                     let hwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: headerHeight))
                     hwv.scrollView.contentInset = .zero
                     hwv.scrollView.contentInsetAdjustmentBehavior = .never
-                    let wrappedHeader = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}</style></head><body>\(header)</body></html>"
+                    let wrappedHeader = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}svg{display:block;width:100%;height:100%;}</style></head><body>\(header)</body></html>"
+                    let delegate = WebViewDelegate {
+                        self.waitForWebViewReady(hwv) {
+                            loadedCount += 1
+                            if loadedCount == totalToLoad {
+                                self.renderPdf(webView: contentWebView!, headerWebView: headerWebView, footerWebView: footerWebView, options: options, continuation: continuation)
+                                containerView.removeFromSuperview()
+                            }
+                        }
+                    }
+                    self.activeDelegates.append(delegate)
+                    hwv.navigationDelegate = delegate
                     hwv.loadHTMLString(wrappedHeader, baseURL: nil)
                     containerView.addSubview(hwv)
                     headerWebView = hwv
                 }
                 
                 if let footer = options.footer, footerHeight > 0 {
+                    totalToLoad += 1
                     let fwv = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: footerHeight))
                     fwv.scrollView.contentInset = .zero
                     fwv.scrollView.contentInsetAdjustmentBehavior = .never
-                    let wrappedFooter = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}</style></head><body>\(footer)</body></html>"
+                    let wrappedFooter = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'><style>*{margin:0!important;padding:0!important;box-sizing:border-box;}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden;}svg{display:block;width:100%;height:100%;}</style></head><body>\(footer)</body></html>"
+                    let delegate = WebViewDelegate {
+                        self.waitForWebViewReady(fwv) {
+                            loadedCount += 1
+                            if loadedCount == totalToLoad {
+                                self.renderPdf(webView: contentWebView!, headerWebView: headerWebView, footerWebView: footerWebView, options: options, continuation: continuation)
+                                containerView.removeFromSuperview()
+                            }
+                        }
+                    }
+                    self.activeDelegates.append(delegate)
+                    fwv.navigationDelegate = delegate
                     fwv.loadHTMLString(wrappedFooter, baseURL: nil)
                     containerView.addSubview(fwv)
                     footerWebView = fwv
                 }
                 
                 let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: pageSize.width, height: 842))
-                webView.loadHTMLString(options.html, baseURL: nil)
                 containerView.addSubview(webView)
+                contentWebView = webView
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    self.renderPdf(webView: webView, headerWebView: headerWebView, footerWebView: footerWebView, options: options, continuation: continuation)
-                    containerView.removeFromSuperview()
+                let delegate = WebViewDelegate {
+                    self.waitForWebViewReady(contentWebView!) {
+                        loadedCount += 1
+                        if loadedCount == totalToLoad {
+                            self.renderPdf(webView: contentWebView!, headerWebView: headerWebView, footerWebView: footerWebView, options: options, continuation: continuation)
+                            containerView.removeFromSuperview()
+                        }
+                    }
                 }
+                self.activeDelegates.append(delegate)
+                webView.navigationDelegate = delegate
+                webView.loadHTMLString(options.html, baseURL: nil)
             }
         }
     }
     
     private func renderPdf(webView: WKWebView, headerWebView: WKWebView?, footerWebView: WKWebView?, options: PdfOptions, continuation: CheckedContinuation<PdfResult, Error>) {
+        self.activeDelegates.removeAll()
+        
+        headerWebView?.layoutIfNeeded()
+        footerWebView?.layoutIfNeeded()
+        webView.layoutIfNeeded()
+        
         let pageSizeString = options.pageSize?.stringValue ?? "A4"
         let pageSize = getPageSize(pageSizeString, width: options.width, height: options.height)
         
@@ -181,6 +222,32 @@ class NitroHtmlPdf: HybridNitroHtmlPdfSpec {
         }
     }
     
+    private func waitForWebViewReady(_ webView: WKWebView, completion: @escaping () -> Void) {
+        let js = """
+        (function() {
+            if (document.readyState !== 'complete') {
+                return false;
+            }
+            const images = Array.from(document.images);
+            return images.every(img => img.complete);
+        })();
+        """
+
+        func check() {
+            webView.evaluateJavaScript(js) { result, _ in
+                if let isReady = result as? Bool, isReady {
+                    completion()
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        check()
+                    }
+                }
+            }
+        }
+
+        check()
+    }
+    
     private func getPageSize(_ size: String, width: Double?, height: Double?) -> CGSize {
         if let w = width, let h = height {
             return CGSize(width: w, height: h)
@@ -235,7 +302,7 @@ class CustomPrintPageRenderer: UIPrintPageRenderer {
         if let headerWebView = headerWebView, customHeaderHeight > 0 {
             context.saveGState()
             context.translateBy(x: 0, y: 0)
-            headerWebView.layer.render(in: context)
+            headerWebView.drawHierarchy(in: headerWebView.bounds, afterScreenUpdates: true)
             context.restoreGState()
         }
         
@@ -262,7 +329,7 @@ class CustomPrintPageRenderer: UIPrintPageRenderer {
         if let footerWebView = footerWebView, customFooterHeight > 0 {
             context.saveGState()
             context.translateBy(x: 0, y: pageSize.height - customFooterHeight)
-            footerWebView.layer.render(in: context)
+            footerWebView.drawHierarchy(in: footerWebView.bounds, afterScreenUpdates: true)
             context.restoreGState()
         }
     }
