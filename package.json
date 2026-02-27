@@ -1,6 +1,6 @@
 {
   "name": "@flitzinteractive/react-native-nitro-html-pdf",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Generate professional PDF documents directly on device from HTML - perfect for invoices, receipts, reports, and contracts with custom headers, footers, and page numbers. No backend required, works offline, zero cloud costs.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
