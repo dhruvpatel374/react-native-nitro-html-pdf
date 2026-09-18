@@ -9,8 +9,14 @@
   },
   "autolinking": {
     "NitroHtmlPdf": {
-      "swift": "NitroHtmlPdf",
-      "kotlin": "NitroHtmlPdf"
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "NitroHtmlPdf"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "NitroHtmlPdf"
+      }
     }
   },
   "ignorePaths": ["node_modules"]

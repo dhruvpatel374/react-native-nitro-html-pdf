@@ -13,7 +13,7 @@
     "@flitzinteractive/react-native-nitro-html-pdf": "*",
     "react": "19.2.0",
     "react-native": "0.83.0",
-    "react-native-nitro-modules": "^0.33.9"
+    "react-native-nitro-modules": "^0.37.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
